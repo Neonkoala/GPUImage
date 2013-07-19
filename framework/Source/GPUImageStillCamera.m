@@ -42,9 +42,8 @@ void GPUImageCreateResizedSampleBuffer(CVPixelBufferRef cameraFrame, CGSize fina
 }
 
 @interface GPUImageStillCamera ()
-{
-    AVCaptureStillImageOutput *photoOutput;
-}
+
+@property (nonatomic, strong) AVCaptureStillImageOutput *photoOutput;
 
 // Methods calling this are responsible for calling dispatch_semaphore_signal(frameRenderingSemaphore) somewhere inside the block
 - (void)capturePhotoProcessedUpToFilter:(GPUImageOutput<GPUImageInput> *)finalFilterInChain withImageOnGPUHandler:(void (^)(NSError *error))block;
@@ -68,14 +67,14 @@ void GPUImageCreateResizedSampleBuffer(CVPixelBufferRef cameraFrame, CGSize fina
     
     [self.captureSession beginConfiguration];
     
-    photoOutput = [[AVCaptureStillImageOutput alloc] init];
+    self.photoOutput = [[AVCaptureStillImageOutput alloc] init];
    
     // Having a still photo input set to BGRA and video to YUV doesn't work well, so since I don't have YUV resizing for iPhone 4 yet, kick back to BGRA for that device
 //    if (captureAsYUV && [GPUImageContext supportsFastTextureUpload])
     if (captureAsYUV && [GPUImageContext deviceSupportsRedTextures])
     {
         BOOL supportsFullYUVRange = NO;
-        NSArray *supportedPixelFormats = photoOutput.availableImageDataCVPixelFormatTypes;
+        NSArray *supportedPixelFormats = self.photoOutput.availableImageDataCVPixelFormatTypes;
         for (NSNumber *currentPixelFormat in supportedPixelFormats)
         {
             if ([currentPixelFormat intValue] == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)
@@ -86,17 +85,17 @@ void GPUImageCreateResizedSampleBuffer(CVPixelBufferRef cameraFrame, CGSize fina
         
         if (supportsFullYUVRange)
         {
-            [photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarFullRange] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
+            [self.photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarFullRange] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
         }
         else
         {
-            [photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
+            [self.photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
         }
     }
     else
     {
         captureAsYUV = NO;
-        [photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
+        [self.photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
         [videoOutput setVideoSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
     }
     
@@ -110,7 +109,7 @@ void GPUImageCreateResizedSampleBuffer(CVPixelBufferRef cameraFrame, CGSize fina
 //        [photoOutput setOutputSettings:[NSDictionary dictionaryWithObject:[NSNumber numberWithInt:kCVPixelFormatType_32BGRA] forKey:(id)kCVPixelBufferPixelFormatTypeKey]];
 //    }
 
-    [self.captureSession addOutput:photoOutput];
+    [self.captureSession addOutput:self.photoOutput];
     
     [self.captureSession commitConfiguration];
     
@@ -130,7 +129,7 @@ void GPUImageCreateResizedSampleBuffer(CVPixelBufferRef cameraFrame, CGSize fina
 
 - (void)removeInputsAndOutputs;
 {
-    [self.captureSession removeOutput:photoOutput];
+    [self.captureSession removeOutput:self.photoOutput];
     [super removeInputsAndOutputs];
 }
 
@@ -222,12 +221,12 @@ void GPUImageCreateResizedSampleBuffer(CVPixelBufferRef cameraFrame, CGSize fina
 {
     dispatch_semaphore_wait(frameRenderingSemaphore, DISPATCH_TIME_FOREVER);
 
-    if(photoOutput.isCapturingStillImage){
+    if(self.photoOutput.isCapturingStillImage){
         block([NSError errorWithDomain:AVFoundationErrorDomain code:AVErrorMaximumStillImageCaptureRequestsExceeded userInfo:nil]);
         return;
     }
 
-    [photoOutput captureStillImageAsynchronouslyFromConnection:[[photoOutput connections] objectAtIndex:0] completionHandler:^(CMSampleBufferRef imageSampleBuffer, NSError *error) {
+    [self.photoOutput captureStillImageAsynchronouslyFromConnection:[[self.photoOutput connections] objectAtIndex:0] completionHandler:^(CMSampleBufferRef imageSampleBuffer, NSError *error) {
         if(imageSampleBuffer == NULL){
             block(error);
             return;
@@ -254,7 +253,7 @@ void GPUImageCreateResizedSampleBuffer(CVPixelBufferRef cameraFrame, CGSize fina
             }
 
             dispatch_semaphore_signal(frameRenderingSemaphore);
-            [self captureOutput:photoOutput didOutputSampleBuffer:sampleBuffer fromConnection:[[photoOutput connections] objectAtIndex:0]];
+            [self captureOutput:self.photoOutput didOutputSampleBuffer:sampleBuffer fromConnection:[[self.photoOutput connections] objectAtIndex:0]];
             dispatch_semaphore_wait(frameRenderingSemaphore, DISPATCH_TIME_FOREVER);
             if (sampleBuffer != NULL)
                 CFRelease(sampleBuffer);
@@ -266,7 +265,7 @@ void GPUImageCreateResizedSampleBuffer(CVPixelBufferRef cameraFrame, CGSize fina
             if ( (currentCameraPosition != AVCaptureDevicePositionFront) || (![GPUImageContext supportsFastTextureUpload]))
             {
                 dispatch_semaphore_signal(frameRenderingSemaphore);
-                [self captureOutput:photoOutput didOutputSampleBuffer:imageSampleBuffer fromConnection:[[photoOutput connections] objectAtIndex:0]];
+                [self captureOutput:self.photoOutput didOutputSampleBuffer:imageSampleBuffer fromConnection:[[self.photoOutput connections] objectAtIndex:0]];
                 dispatch_semaphore_wait(frameRenderingSemaphore, DISPATCH_TIME_FOREVER);
             }
         }
